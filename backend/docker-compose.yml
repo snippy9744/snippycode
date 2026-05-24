@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: snippy-seat-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: snippy
+      POSTGRES_PASSWORD: snippy
+      POSTGRES_DB: snippy_seat
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: snippy-seat-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: snippy-seat-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://snippy:snippy@postgres:5432/snippy_seat?schema=public
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+      - redis
+
+volumes:
+  postgres_data:

@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#F7F7F8] text-brand-ink antialiased;
+  }
+
+  input,
+  textarea,
+  select {
+    @apply outline-none;
+  }
+}

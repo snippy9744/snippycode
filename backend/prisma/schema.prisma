@@ -1,0 +1,366 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String       @id @default(uuid())
+  phone         String?      @unique
+  email         String?      @unique
+  name          String?
+  avatar        String?
+  googleId      String?      @unique
+  role          Role         @default(USER)
+  status        UserStatus   @default(ACTIVE)
+  warningCount  Int          @default(0)
+  isPremium     Boolean      @default(false)
+  premiumExpiry DateTime?
+  fcmToken      String?
+  passwordHash  String?
+  refreshTokenHash      String?
+  refreshTokenExpiresAt DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  bookings      Booking[]
+  reviews       Review[]
+  savedSalons   SavedSalon[]
+  seller        Seller?
+
+  @@index([role])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Seller {
+  id                 String             @id @default(uuid())
+  userId             String             @unique
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopName           String
+  ownerName          String
+  sellerType         SellerType
+  gstNumber          String?
+  aadhaarFront       String?
+  aadhaarBack        String?
+  aadhaarSelfie      String?
+  shopPhotos         String[]           @default([])
+  status             SellerStatus       @default(PENDING_APPROVAL)
+  subscriptionStatus SubscriptionStatus @default(TRIAL)
+  subscriptionExpiry DateTime?
+  isFeatured         Boolean            @default(false)
+  featuredExpiry     DateTime?
+  commissionOverride Float?
+  onboardingCompletedAt DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  salon              Salon?
+
+  @@index([sellerType])
+  @@index([status])
+  @@index([subscriptionStatus])
+  @@index([isFeatured, featuredExpiry])
+}
+
+model Salon {
+  id                String         @id @default(uuid())
+  sellerId          String         @unique
+  seller            Seller         @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  name              String
+  description       String?
+  addressText       String
+  lat               Float
+  lng               Float
+  serviceRadius     Float?
+  photos            String[]       @default([])
+  averageRating     Float          @default(0)
+  totalReviews      Int            @default(0)
+  offersHomeService Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  workingHours      WorkingHours[]
+  services          Service[]
+  staff             Staff[]
+  bookings          Booking[]
+  reviews           Review[]
+  savedByUsers      SavedSalon[]
+
+  @@index([lat, lng])
+  @@index([averageRating])
+  @@index([offersHomeService])
+}
+
+model Service {
+  id                  String           @id @default(uuid())
+  salonId             String
+  salon               Salon            @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  name                String
+  category            ServiceCategory
+  gender              Gender
+  durationMinutes     Int
+  price               Decimal          @db.Decimal(10, 2)
+  homePriceMultiplier Float            @default(1.6)
+  isActive            Boolean          @default(true)
+  isHomeAvailable     Boolean          @default(false)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  staff               StaffService[]
+  bookings            BookingService[]
+
+  @@index([salonId, isActive])
+  @@index([category])
+  @@index([gender])
+}
+
+model Staff {
+  id          String         @id @default(uuid())
+  salonId     String
+  salon       Salon          @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  name        String
+  phone       String?
+  photo       String?
+  speciality  String?
+  isAvailable Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  services    StaffService[]
+  bookings    Booking[]
+
+  @@index([salonId, isAvailable])
+}
+
+model StaffService {
+  staffId   String
+  serviceId String
+  staff     Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([staffId, serviceId])
+  @@index([serviceId])
+}
+
+model Booking {
+  id                String           @id @default(uuid())
+  userId            String
+  user              User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  salonId           String
+  salon             Salon            @relation(fields: [salonId], references: [id], onDelete: Restrict)
+  staffId           String?
+  staff             Staff?           @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  scheduledAt       DateTime
+  durationMinutes   Int
+  status            BookingStatus    @default(CONFIRMED)
+  isHomeService     Boolean          @default(false)
+  homeAddress       String?
+  homeLat           Float?
+  homeLng           Float?
+  travelFee         Decimal          @default(0) @db.Decimal(10, 2)
+  subtotal          Decimal          @db.Decimal(10, 2)
+  convenienceFee    Decimal          @db.Decimal(10, 2)
+  taxAmount         Decimal          @db.Decimal(10, 2)
+  platformFee       Decimal          @db.Decimal(10, 2)
+  totalAmount       Decimal          @db.Decimal(10, 2)
+  paymentStatus     PaymentStatus    @default(PENDING)
+  paymentMethod     PaymentMethod
+  paymentGatewayRef String?
+  commissionAmount  Decimal          @db.Decimal(10, 2)
+  commissionRate    Float
+  refundStatus      RefundStatus?
+  refundAmount      Decimal?         @db.Decimal(10, 2)
+  cancelledAt       DateTime?
+  cancelReason      String?
+  cancelledBy       CancelledBy?
+  warningIssued     Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  services          BookingService[]
+  review            Review?
+
+  @@index([userId, status])
+  @@index([salonId, scheduledAt])
+  @@index([staffId, scheduledAt])
+  @@index([paymentStatus])
+  @@index([createdAt])
+}
+
+model BookingService {
+  id              String   @id @default(uuid())
+  bookingId       String
+  booking         Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  serviceId       String
+  service         Service  @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  serviceName     String
+  durationMinutes Int
+  price           Decimal  @db.Decimal(10, 2)
+  createdAt       DateTime @default(now())
+
+  @@unique([bookingId, serviceId])
+  @@index([serviceId])
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  bookingId String   @unique
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String?
+  photos    String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([salonId, createdAt])
+}
+
+model AdminConfig {
+  id                            String   @id @default(uuid())
+  userCommissionPct             Float    @default(2.5)
+  sellerCommissionPct           Float    @default(12.0)
+  homeServiceCommissionPct      Float    @default(15.0)
+  convenienceFeeMin             Decimal  @default(10) @db.Decimal(10, 2)
+  convenienceFeeMax             Decimal  @default(30) @db.Decimal(10, 2)
+  homePriceMultiplier           Float    @default(1.6)
+  travelFeePerKm                Decimal  @default(10) @db.Decimal(10, 2)
+  gstPct                        Float    @default(18.0)
+  additionalTaxLabel            String?
+  additionalTaxPct              Float    @default(0)
+  userPremiumPriceMonthly       Decimal  @default(199) @db.Decimal(10, 2)
+  sellerSubscriptionMonthly     Decimal  @default(999) @db.Decimal(10, 2)
+  sellerTrialDays               Int      @default(30)
+  cancellationWindowMinutes     Int      @default(15)
+  maxWarningsBeforeBlock        Int      @default(3)
+  featuredListingPriceMonthly   Decimal  @default(499) @db.Decimal(10, 2)
+  updatedAt                     DateTime @updatedAt
+}
+
+model WorkingHours {
+  id          String              @id @default(uuid())
+  salonId     String
+  salon       Salon               @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int
+  isOpen      Boolean             @default(true)
+  openTime    String
+  closeTime   String
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  breaks      WorkingHoursBreak[]
+
+  @@unique([salonId, dayOfWeek])
+  @@index([dayOfWeek])
+}
+
+model WorkingHoursBreak {
+  id             String       @id @default(uuid())
+  workingHoursId String
+  workingHours   WorkingHours @relation(fields: [workingHoursId], references: [id], onDelete: Cascade)
+  startTime      String
+  endTime        String
+  createdAt      DateTime     @default(now())
+
+  @@index([workingHoursId])
+}
+
+model SavedSalon {
+  userId    String
+  salonId   String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  salon     Salon    @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, salonId])
+  @@index([salonId])
+}
+
+enum Role {
+  USER
+  SELLER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+  SUSPENDED
+}
+
+enum SellerStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  BLOCKED
+  SUSPENDED
+}
+
+enum SellerType {
+  SHOP
+  HOME_SERVICE
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum Gender {
+  MEN
+  WOMEN
+  UNISEX
+}
+
+enum BookingStatus {
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  PARTIALLY_REFUNDED
+  FAILED
+}
+
+enum PaymentMethod {
+  ONLINE
+  AT_SHOP
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+enum CancelledBy {
+  USER
+  SELLER
+  ADMIN
+}
+
+enum ServiceCategory {
+  HAIRCUT
+  SHAVING
+  BEARD_TRIM
+  COLORING
+  SMOOTHENING
+  STRAIGHTENING
+  KERATIN
+  FACIAL
+  CLEANUP
+  THREADING
+  WAXING
+  BRIDAL
+  KIDS_CUT
+  HEAD_MASSAGE
+  OTHER
+}
